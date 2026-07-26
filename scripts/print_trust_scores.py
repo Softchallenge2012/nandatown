@@ -114,32 +114,34 @@ def _seller_purchase_history(index: int) -> list[dict[str, object]]:
     policy = _load_policy()
 
     purchase_history_table = []
-    with csv_path.open("r", encoding="utf-8", newline="") as fp:
-        reader = csv.DictReader(fp)
-        for i, row in enumerate(reader, start=0):
-            amount_raw = (row.get("amount") or "").strip()
-            title = row.get("gift_card", "")
-            if title == "":
-                pred_label = ""
-            else:
-                policy._ensure_prompt(title)
-                probs = policy._softmax(policy.logits[title])
-                pred_idx = max(range(len(probs)), key=lambda i: probs[i])
-                pred_label = policy.actions[pred_idx]
-            
-            category = clean_categories(row.get("category", ""))
+    # with csv_path.open("r", encoding="utf-8", newline="") as fp:
+    #     reader = csv.DictReader(fp)
+    df = pd.read_csv(csv_path)
+    df = df.iloc[:200]
+    for i, row in df.iterrows():
+        amount_raw = row.get("amount", 0)
+        title = row.get("gift_card", "")
+        if title == "":
+            pred_label = ""
+        else:
+            policy._ensure_prompt(title)
+            probs = policy._softmax(policy.logits[title])
+            pred_idx = max(range(len(probs)), key=lambda i: probs[i])
+            pred_label = policy.actions[pred_idx]
+        
+        category = clean_categories(row.get("category", ""))
 
-            purchase_history_table.append(
-                {
-                    "record_index": str(i),
-                    "customer_id": row.get("customer_id", ""),
-                    "gift_card": pred_label,
-                    "merchant": row.get("merchant", ""),
-                    "category": category,
-                    "amount": float(amount_raw) if amount_raw else 0,
-                    "notes": row.get("notes", ""),
-                }
-            )
+        purchase_history_table.append(
+            {
+                "record_index": str(i),
+                "customer_id": row.get("customer_id", ""),
+                "gift_card": pred_label,
+                "merchant": row.get("merchant", ""),
+                "category": category,
+                "amount": float(amount_raw),
+                "notes": row.get("notes", ""),
+            }
+        )
     return purchase_history_table
 
 
