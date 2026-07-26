@@ -136,7 +136,7 @@ def _seller_purchase_history(index: int) -> list[dict[str, object]]:
                     "gift_card": pred_label,
                     "merchant": row.get("merchant", ""),
                     "category": category,
-                    "amount": float(amount_raw) if amount_raw else "",
+                    "amount": float(amount_raw) if amount_raw else 0,
                     "notes": row.get("notes", ""),
                 }
             )
