@@ -151,11 +151,13 @@ class GiftCardRecommenderFacts(DataFacts):
         for row in table:
             searchable = " ".join(
                 [
-                    _text(row.get("customer_id")).lower(),
+                    # _text(row.get("customer_id")).lower(),
+                    _text(row.get("record_index")).lower(),
                     _text(row.get("gift_card")).lower(),
                     _text(row.get("merchant")).lower(),
                     _text(row.get("category")).lower(),
-                    _text(row.get("notes")).lower(),
+                    _text(row.get("amount")).lower(),
+                    # _text(row.get("notes")).lower(),
                 ]
             )
             if all(token in searchable for token in tokens):
