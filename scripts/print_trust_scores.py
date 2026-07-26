@@ -24,10 +24,10 @@ from nest_sdk import DatasetMetadata
 
 from nest_plugins_reference.datafacts.gift_card_recommender import GiftCardRecommenderFacts
 from nest_plugins_reference.trust.score_average import ScoreAverageTrust
-
+import time
 
 SELLER_COUNT = 100
-BUYER_COUNT = 100
+BUYER_COUNT = 10
 
 
 def clean_categories(text: str) -> str:
@@ -117,7 +117,8 @@ def _seller_purchase_history(index: int) -> list[dict[str, object]]:
     # with csv_path.open("r", encoding="utf-8", newline="") as fp:
     #     reader = csv.DictReader(fp)
     df = pd.read_csv(csv_path)
-    df = df.iloc[:200]
+    df = df.fillna(0)
+    df = df.iloc[:1000]
     for i, row in df.iterrows():
         amount_raw = row.get("amount", 0)
         title = row.get("gift_card", "")
@@ -159,6 +160,7 @@ def _buyer_query(buyer_index: int) -> str:
     record_index = str(buyer_index)
     csv_path = Path("data/gift_card/test_gift.csv")
     df = pd.read_csv(csv_path)
+    df = df.fillna(0)
     
     row = df.iloc[buyer_index]
 
@@ -242,4 +244,6 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
+    start = time.time()
     asyncio.run(main())
+    print(f"Execution time: {time.time() - start:.2f} seconds")
