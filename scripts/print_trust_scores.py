@@ -72,7 +72,7 @@ def _buyer_query(seller_index: int, buyer_index: int) -> str:
         record_index = f"seller-{seller_index:03d}-record-00"
     else:
         record_index = f"buyer-{buyer_index:03d}-mismatch-{seller_index:03d}"
-
+    
     return json.dumps(
         {
             "record_index": record_index,
@@ -103,6 +103,8 @@ async def run_recommendation_marketplace(trust: Trust) -> tuple[list[AgentId], l
         for seller_index, seller in enumerate(sellers):
             query = _buyer_query(seller_index, buyer_index)
             verdict = facts.recommend_gift_cards(published_urls[seller], query)
+            print(f"query={query}")
+            print(f"verdict={verdict}")
             await trust.report(
                 seller,
                 Evidence(
