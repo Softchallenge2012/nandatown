@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from nest_core.layers.datafacts import DataFacts
 from nest_core.plugins import PluginRegistry
@@ -24,6 +26,7 @@ class TestGiftCardRecommenderFacts:
             metadata={
                 "purchase_history_table": [
                     {
+                        "record_index": "r-001",
                         "customer_id": "c-001",
                         "gift_card": "Starbucks",
                         "merchant": "Starbucks",
@@ -32,6 +35,7 @@ class TestGiftCardRecommenderFacts:
                         "notes": "birthday coworker",
                     },
                     {
+                        "record_index": "r-002",
                         "customer_id": "c-002",
                         "gift_card": "Amazon",
                         "merchant": "Amazon",
@@ -40,6 +44,7 @@ class TestGiftCardRecommenderFacts:
                         "notes": "birthday teen",
                     },
                     {
+                        "record_index": "r-003",
                         "customer_id": "c-003",
                         "gift_card": "Starbucks",
                         "merchant": "Starbucks",
@@ -55,7 +60,18 @@ class TestGiftCardRecommenderFacts:
         fetched = await facts.fetch(url)
         assert fetched.name == "gift-card-history"
 
-        coffee_rows = facts.search_purchase_history(url, "coffee")
+        coffee_rows = facts.search_purchase_history(
+            url,
+            json.dumps(
+                {
+                    "record_index": "r-001",
+                    "gift_card": "",
+                    "merchant": "",
+                    "category": "coffee",
+                    "amount": "",
+                }
+            ),
+        )
         assert len(coffee_rows) == 2
         assert all(row["gift_card"] == "Starbucks" for row in coffee_rows)
 
@@ -69,6 +85,7 @@ class TestGiftCardRecommenderFacts:
                 metadata={
                     "purchase_history_table": [
                         {
+                            "record_index": "r-101",
                             "customer_id": "c-001",
                             "gift_card": "Steam",
                             "category": "gaming",
@@ -76,6 +93,7 @@ class TestGiftCardRecommenderFacts:
                             "notes": "teen birthday",
                         },
                         {
+                            "record_index": "r-102",
                             "customer_id": "c-002",
                             "gift_card": "Steam",
                             "category": "gaming",
@@ -83,6 +101,7 @@ class TestGiftCardRecommenderFacts:
                             "notes": "teen graduation",
                         },
                         {
+                            "record_index": "r-103",
                             "customer_id": "c-003",
                             "gift_card": "Nintendo",
                             "category": "gaming",
@@ -94,10 +113,62 @@ class TestGiftCardRecommenderFacts:
             )
         )
 
-        recs = facts.recommend_gift_cards(url, "gaming teen", top_k=3)
+        recs = facts.recommend_gift_cards(
+            url,
+            json.dumps(
+                {
+                    "record_index": "r-101",
+                    "gift_card": "",
+                    "merchant": "",
+                    "category": "gaming",
+                    "amount": "",
+                }
+            ),
+            top_k=3,
+        )
         assert [item["gift_card"] for item in recs] == ["Steam", "Nintendo"]
+        assert all(item["match"] == "positive" for item in recs)
         assert recs[0]["purchase_count"] == 2
         assert recs[0]["average_amount"] == 50.0
+
+    @pytest.mark.asyncio
+    async def test_recommendation_returns_negative_when_record_index_misses(self) -> None:
+        facts = GiftCardRecommenderFacts()
+        url = await facts.publish(
+            DatasetMetadata(
+                name="gift-card-history",
+                owner=AgentId("merchant-ops"),
+                metadata={
+                    "purchase_history_table": [
+                        {
+                            "record_index": "r-201",
+                            "customer_id": "c-001",
+                            "gift_card": "Steam",
+                            "merchant": "Steam",
+                            "category": "gaming",
+                            "amount": 60,
+                            "notes": "teen birthday",
+                        }
+                    ]
+                },
+            )
+        )
+
+        recs = facts.recommend_gift_cards(
+            url,
+            json.dumps(
+                {
+                    "record_index": "r-999",
+                    "gift_card": "",
+                    "merchant": "",
+                    "category": "gaming",
+                    "amount": "",
+                }
+            ),
+            top_k=1,
+        )
+
+        assert recs[0]["match"] == "negative"
 
     @pytest.mark.asyncio
     async def test_request_access_enforces_private_tier(self) -> None:

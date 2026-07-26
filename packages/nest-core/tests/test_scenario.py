@@ -244,6 +244,38 @@ class TestMarketplaceScenario:
         assert traces[0] == traces[1]
         assert len(traces[0]) > 0
 
+    @pytest.mark.asyncio
+    async def test_gift_card_recommender_demo_reports_trust_scores(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        trace_file = tmp_path / "gift_card_recommender_demo.jsonl"
+        config = ScenarioConfig.from_dict(
+            {
+                "name": "gift_card_recommender_demo",
+                "seed": 42,
+                "agents": {
+                    "count": 2,
+                    "roles": [
+                        {"name": "buyer", "count": 1},
+                        {"name": "seller", "count": 1},
+                    ],
+                },
+                "layers": {"datafacts": "gift_card_recommender"},
+                "task": {"type": "marketplace", "config": {"rounds": 1}},
+                "duration": "ticks: 200",
+                "output": {"trace": str(trace_file)},
+            }
+        )
+
+        runner = ScenarioRunner(config)
+        await runner.run()
+
+        captured = capsys.readouterr()
+        lines = [line for line in captured.out.splitlines() if line]
+        assert lines[0] == "agent_id\tscore\tconfidence\tsamples"
+        assert any(line.startswith("buyer-0\t") for line in lines[1:])
+        assert any(line.startswith("seller-0\t") for line in lines[1:])
+
 
 class TestEmpicPaymentsScenario:
     """End-to-end checks for the EMPIC payments scenario."""

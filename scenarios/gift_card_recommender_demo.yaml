@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
-# Minimal demo: select the gift-card recommender DataFacts plugin.
+# Gift-card recommendation marketplace demo using the gift-card recommender DataFacts plugin.
 name: gift_card_recommender_demo
-description: "2-agent marketplace demo using gift_card_recommender for purchase-history search and recommendations."
+description: "1 buyers and 1 sellers using gift_card_recommender for purchase-history search and recommendations."
 
 tier: 1
 seed: 42
@@ -32,13 +32,13 @@ layers:
 task:
   type: marketplace
   config:
-    rounds: 2
-    catalog_size: 5
+    rounds: 10
+    catalog_size: 200
 
 failures:
   message_drop: 0.0
 
-duration: "ticks: 500"
+duration: "ticks: 10000"
 
 metrics:
   - success_rate

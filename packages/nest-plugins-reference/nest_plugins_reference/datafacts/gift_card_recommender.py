@@ -7,6 +7,7 @@ recommendations over that table.
 
 from __future__ import annotations
 
+import json
 import time
 from collections import defaultdict
 from typing import Any
@@ -15,12 +16,51 @@ from nest_sdk import AccessGrant, AgentId, DataFacts, DataFactsUrl, DatasetMetad
 
 
 _TABLE_KEY = "purchase_history_table"
+_SEARCH_FIELDS = (
+    "gift_card",
+    "merchant",
+    "category",
+    "amount",
+)
 
 
 def _text(value: Any) -> str:
     if value is None:
         return ""
     return str(value)
+
+
+def _search_terms(query: str) -> str:
+    try:
+        payload = json.loads(query)
+    except json.JSONDecodeError:
+        return query
+
+    if isinstance(payload, dict):
+        for key in ("query", "search", "term"):
+            value = payload.get(key)
+            if isinstance(value, str):
+                return value
+
+        field_terms = [
+            _text(payload.get(field)).strip()
+            for field in _SEARCH_FIELDS
+            if payload.get(field) is not None and _text(payload.get(field)).strip()
+        ]
+        if field_terms:
+            return " ".join(field_terms)
+    return query
+
+
+def _query_record_index(query: str) -> str:
+    try:
+        payload = json.loads(query)
+    except json.JSONDecodeError:
+        return ""
+
+    if not isinstance(payload, dict):
+        return ""
+    return _text(payload.get("record_index")).strip()
 
 
 class GiftCardRecommenderFacts(DataFacts):
@@ -34,6 +74,7 @@ class GiftCardRecommenderFacts(DataFacts):
             metadata={
                 "purchase_history_table": [
                     {
+                        "record_index": "r-001",
                         "customer_id": "c-001",
                         "gift_card": "Starbucks",
                         "merchant": "Starbucks",
@@ -92,14 +133,17 @@ class GiftCardRecommenderFacts(DataFacts):
         """Return purchase rows matching all tokens in ``query``.
 
         Search is case-insensitive and spans customer, gift-card, merchant,
-        category, and free-form notes columns.
+        category, and free-form notes columns. ``query`` may also be a JSON
+        object string containing a ``query``, ``search``, or ``term`` field,
+        or a purchase-history-shaped object using gift_card, merchant,
+        category, and amount fields.
         """
         table = self._tables.get(url)
         if table is None:
             msg = f"Dataset not found: {url}"
             raise KeyError(msg)
 
-        tokens = [t for t in query.lower().split() if t]
+        tokens = [t for t in _search_terms(query).lower().split() if t]
         if not tokens:
             return [row.copy() for row in table[:limit]]
 
@@ -126,15 +170,35 @@ class GiftCardRecommenderFacts(DataFacts):
         query: str,
         *,
         top_k: int = 5,
-    ) -> list[dict[str, Any]]:
+    ) -> str:
+    # ) -> list[dict[str, Any]]:
         """Recommend gift cards by ranking cards from searched purchase rows.
 
         Ranking uses purchase frequency first, then average amount, then
-        alphabetical card name for stable deterministic ordering.
+        alphabetical card name for stable deterministic ordering. Returned
+        recommendations include a positive/negative match label based on whether
+        the query record_index is present in the matched purchase rows.
         """
         matches = self.search_purchase_history(url, query, limit=10_000)
+        query_record_index = _query_record_index(query)
+        matched_record_indexes = {
+            _text(row.get("record_index")).strip()
+            for row in matches
+            if _text(row.get("record_index")).strip()
+        }
+        match_label = (
+            "positive"
+            if query_record_index and query_record_index in matched_record_indexes
+            else "negative"
+        )
         aggregates: dict[str, dict[str, Any]] = defaultdict(
-            lambda: {"gift_card": "", "purchase_count": 0, "average_amount": 0.0, "_sum": 0.0}
+            lambda: {
+                "gift_card": "",
+                "purchase_count": 0,
+                "average_amount": 0.0,
+                "match": match_label,
+                "_sum": 0.0,
+            }
         )
 
         for row in matches:
@@ -163,7 +227,8 @@ class GiftCardRecommenderFacts(DataFacts):
                 str(item["gift_card"]).lower(),
             )
         )
-        return ranked[:top_k]
+        # return ranked[:top_k]
+        return match_label
 
     def _extract_purchase_table(self, dataset: DatasetMetadata) -> list[dict[str, Any]]:
         raw = dataset.metadata.get(_TABLE_KEY, [])

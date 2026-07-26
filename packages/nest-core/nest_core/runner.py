@@ -52,6 +52,17 @@ class ScenarioRunner:
     def resolved_plugins(self) -> dict[str, Any]:
         return self._resolved_plugins
 
+    def _should_report_trust_scores(self) -> bool:
+        return self._config.name == "gift_card_recommender_demo"
+
+    async def _report_trust_scores(self, trust: Any, agent_ids: list[AgentId]) -> None:
+        print("agent_id\tscore\tconfidence\tsamples")
+        for agent_id in sorted(agent_ids, key=str):
+            rep = await trust.score(agent_id)
+            print(
+                f"{rep.agent_id}\t{rep.score:.3f}\t{rep.confidence:.3f}\t{rep.sample_count}"
+            )
+
     def _resolve_plugins(self) -> dict[str, Any]:
         """Resolve all layer plugins from the config.
 
@@ -182,6 +193,11 @@ class ScenarioRunner:
 
         max_ticks = self._config.get_max_ticks()
         await sim.run(max_ticks=max_ticks)
+
+        if self._should_report_trust_scores():
+            trust = self._resolved_plugins.get("trust")
+            if trust is not None and hasattr(trust, "score"):
+                await self._report_trust_scores(trust, list(agents.keys()))
 
         if self._config.metrics:
             from nest_core.metrics import compute_metrics, generate_html_report
